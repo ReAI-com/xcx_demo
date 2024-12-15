@@ -66,11 +66,12 @@ export default {
   height: 100vh;
   background-color: #000;
   color: #fff;
-  padding: 40rpx;
+  padding: 60rpx;
   display: flex;
   flex-direction: column;
   transform: translateX(-100%);
   transition: transform 0.3s ease;
+  z-index: 999;
 
   &--open {
     transform: translateX(0);
@@ -80,35 +81,42 @@ export default {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 120rpx;
+    margin-bottom: 160rpx;
   }
 
   &__logo {
-    font-size: 48rpx;
+    font-size: 72rpx;
     font-weight: bold;
+    font-family: system-ui, -apple-system, sans-serif;
   }
 
   &__close {
-    font-size: 64rpx;
+    font-size: 80rpx;
     padding: 20rpx;
+    height: 80rpx;
+    line-height: 80rpx;
+    text-align: center;
   }
 
   &__items {
     display: flex;
     flex-direction: column;
-    gap: 60rpx;
+    gap: 80rpx;
+    padding: 40rpx 0;
   }
 
   &__item {
     color: #fff;
-    font-size: 48rpx;
+    font-size: 64rpx;
+    font-weight: 500;
   }
 
   &__footer {
     margin-top: auto;
     text-align: center;
-    font-size: 28rpx;
-    opacity: 0.7;
+    font-size: 24rpx;
+    opacity: 0.6;
+    padding: 40rpx 0;
   }
 }
 </style>
