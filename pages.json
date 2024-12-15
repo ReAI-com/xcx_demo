@@ -4,6 +4,12 @@
 		"style": {
 			"navigationBarTitleText": "uni-app"
 		}
+	},
+	{
+		"path": "pages/mall/index",
+		"style": {
+			"navigationBarTitleText": "商场"
+		}
 	}],
 	"globalStyle": {
 		"navigationBarTextStyle": "black",
