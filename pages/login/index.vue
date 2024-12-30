@@ -9,15 +9,18 @@
 		<form class="cl">
 			<view class="t-a">
 				<image src="@/static/login/sj.png"></image>
-				<input type="number" name="phone" placeholder="请输入手机号" maxlength="11" v-model="phone" />
+				<input type="number" name="phone" placeholder="请输入手机号" maxlength="11" v-model="phone" :disabled="loading" />
 			</view>
 			<view class="t-a">
 				<image src="@/static/login/yz.png"></image>
-				<input type="number" name="code" maxlength="6" placeholder="请输入验证码" v-model="yzm" />
-				<view v-if="showText" class="t-c" @tap="getCode()">发送短信</view>
-				<view v-else class="t-c" style="background-color: #A7A7A7;">重新发送({{ second }})</view>
+				<input type="number" name="code" maxlength="6" placeholder="请输入验证码" v-model="yzm" :disabled="loading" />
+				<view v-if="showText" class="t-c" @tap="getCode()" :class="{'disabled': !phone || loading}">发送短信</view>
+				<view v-else class="t-c disabled">重新发送({{ second }})</view>
 			</view>
-			<button @tap="login()">登 录</button>
+			<button @tap="login()" :disabled="loading" :class="{'loading': loading}">
+				<text v-if="!loading">登 录</text>
+				<text v-else>登录中...</text>
+			</button>
 		</form>
 		<view class="t-f"><text>————— 第三方账号登录 —————</text></view>
 		<view class="t-e cl jic">
@@ -35,14 +38,17 @@ export default {
 			second: 60, //默认60秒
 			showText: true, //判断短信是否发送
 			phone: '', //手机号码
-			yzm: '' //验证码
+			yzm: '', //验证码
+			loading: false //加载状态
 		};
 	},
 	onLoad() {},
 	methods: {
 		//当前登录按钮操作
-		login() {
+		async login() {
 			var that = this;
+			if (that.loading) return;
+			
 			if (!that.phone) {
 				uni.showToast({ title: '请输入手机号', icon: 'none' });
 				return;
@@ -55,8 +61,43 @@ export default {
 				uni.showToast({ title: '请输入验证码', icon: 'none' });
 				return;
 			}
-			//....此处省略，这里需要调用后台验证一下验证码是否正确，根据您的需求来
-			uni.showToast({ title: '登录成功！', icon: 'none' });
+			
+			that.loading = true;
+				// 调用后台验证验证码
+			try {
+				const res = await api.apiPost('/api/auth/verify-sms', {
+					phone: that.phone,
+					code: that.yzm
+				}, 'host1');
+				
+				if (res.code === 0 && res.data) {
+					// 存储token
+					api.apiSetToken(res.data.token, res.data.expiresIn);
+					uni.showToast({ 
+						title: '登录成功！', 
+						icon: 'success',
+						duration: 2000
+					});
+					// 登录成功后跳转到首页
+					setTimeout(() => {
+						uni.reLaunch({
+							url: '/pages/index/index'
+						});
+					}, 2000);
+				} else {
+					uni.showToast({ 
+						title: res.message || '验证码验证失败', 
+						icon: 'none' 
+					});
+				}
+			} catch (err) {
+				uni.showToast({ 
+					title: '网络错误，请稍后重试', 
+					icon: 'none' 
+				});
+			} finally {
+				that.loading = false;
+			}
 		},
 		//获取短信验证码
 		getCode() {
@@ -73,19 +114,116 @@ export default {
 				that.second = 60;
 				that.showText = true;
 			}, 60000);
-			//这里请求后台获取短信验证码
-			uni.request({
-				//......//此处省略
-				success: function(res) {
+			// 验证手机号格式
+			if (!that.phone) {
+				uni.showToast({ title: '请输入手机号', icon: 'none' });
+				return;
+			}
+			if (!/^[1][3,4,5,7,8,9][0-9]{9}$/.test(that.phone)) {
+				uni.showToast({ title: '请输入正确手机号', icon: 'none' });
+				return;
+			}
+			
+			that.loading = true;
+			try {
+				// 请求后台获取短信验证码
+				const res = await api.apiPost('/api/auth/send-sms', {
+					phone: that.phone
+				}, 'host1');
+				
+				if (res.code === 0) {
+					uni.showToast({ 
+						title: '验证码已发送', 
+						icon: 'success' 
+					});
 					that.showText = false;
+				} else {
+					clearInterval(interval);
+					that.second = 60;
+					that.showText = true;
+					uni.showToast({ 
+						title: res.message || '发送失败，请重试', 
+						icon: 'none' 
+					});
 				}
-			});
+			} catch (err) {
+				clearInterval(interval);
+				that.second = 60;
+				that.showText = true;
+				uni.showToast({ 
+					title: '网络错误，请稍后重试', 
+					icon: 'none' 
+				});
+			} finally {
+				that.loading = false;
+			}
 		},
-		//等三方微信登录
+		//微信登录
 		async wxLogin() {
-			uni.showToast({ title: '微信登录', icon: 'none' });
-			let ret = await api.apiGet('/api/hd/version','host2')
-			console.log('测试-->',ret);
+			if (this.loading) return;
+			this.loading = true;
+			
+			try {
+				// 获取当前环境的服务商
+				const [error, res] = await uni.getProvider({
+					service: 'oauth'
+				});
+				
+				if (error || !res.providers.includes('weixin')) {
+					uni.showToast({ 
+						title: '当前环境不支持微信登录', 
+						icon: 'none' 
+					});
+					return;
+				}
+				
+				// 调用微信登录
+				const [loginErr, loginRes] = await uni.login({
+					provider: 'weixin'
+				});
+				
+				if (loginErr) {
+					uni.showToast({ 
+						title: '微信登录失败，请重试', 
+						icon: 'none' 
+					});
+					return;
+				}
+				
+				// 发送code到后端换取token
+				const authRes = await api.apiPost('/api/auth/wx-login', {
+					code: loginRes.code
+				}, 'host1');
+				
+				if (authRes.code === 0 && authRes.data) {
+					// 存储token
+					api.apiSetToken(authRes.data.token, authRes.data.expiresIn);
+					uni.showToast({ 
+						title: '登录成功！', 
+						icon: 'success',
+						duration: 2000
+					});
+					// 登录成功后跳转到首页
+					setTimeout(() => {
+						uni.reLaunch({
+							url: '/pages/index/index'
+						});
+					}, 2000);
+				} else {
+					uni.showToast({ 
+						title: authRes.message || '登录失败，请重试', 
+						icon: 'none' 
+					});
+				}
+			} catch (err) {
+				console.error('微信登录错误:', err);
+				uni.showToast({ 
+					title: '网络错误，请稍后重试', 
+					icon: 'none' 
+				});
+			} finally {
+				this.loading = false;
+			}
 		},
 		//第三方支付宝登录
 		zfbLogin() {
@@ -124,6 +262,17 @@ export default {
 	line-height: 90rpx;
 	border-radius: 50rpx;
 	box-shadow: 0 5px 7px 0 rgba(86, 119, 252, 0.2);
+	transition: all 0.3s ease;
+}
+
+.t-login button.loading {
+	opacity: 0.8;
+	background: #7591fd;
+}
+
+.t-login button:disabled {
+	background: #a7a7a7;
+	box-shadow: none;
 }
 
 .t-login input {
@@ -170,6 +319,13 @@ export default {
 	height: 50rpx;
 	line-height: 50rpx;
 	padding: 0 25rpx;
+	transition: all 0.3s ease;
+}
+
+
+.t-login .t-c.disabled {
+	background-color: #A7A7A7;
+	cursor: not-allowed;
 }
 
 .t-login .t-d {

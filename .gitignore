@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# IDE
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw*
+
+# Mini Program specific
+miniprogram_npm/
+dist/
+.DS_Store
+unpackage/
